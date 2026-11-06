@@ -43,8 +43,9 @@ jobs:
         run: |
           APK=app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
-          unzip -l "$APK" | grep -E 'lib/(arm64-v8a|armeabi-v7a)/.*\.so' | head
-          sha256sum "$APK"
+          python3 ../../scripts/inspect_apk.py "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 8
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml | grep -E 'AirPlayService|airplay.MainActivity'
       - name: Save compile candidate for inspection only
         if: success()
         uses: actions/upload-artifact@v4
