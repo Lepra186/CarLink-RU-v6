@@ -103,6 +103,16 @@ for filename in destination.rglob("*.kt"):
     s = s.replace("@Inject constructor(", "constructor(")
     filename.write_text(s)
 
+# Kotlin 2.4 correctly treats MediaProjectionManager.getMediaProjection() as nullable.
+# Abort the sender service when capture permission does not yield a projection.
+sender = destination / "src/main/kotlin/io/github/jqssun/airplay/mirror/MirrorSenderService.kt"
+sender_source = sender.read_text()
+projection_anchor = "projection = mpm.getMediaProjection(resultCode, data).also {"
+if projection_anchor not in sender_source:
+    raise RuntimeError("MediaProjection upstream anchor changed")
+sender.write_text(sender_source.replace(projection_anchor,
+    "projection = (mpm.getMediaProjection(resultCode, data) ?: run { stopSelf(); return START_NOT_STICKY }).also {", 1))
+
 # Native activity of the actual AirPlay receiver is launched from within CarLink.
 # Stop CarPlay first, releasing the transport before starting mDNS & video decoding.
 path = "app/src/main/java/com/carlink/app/ui/HomeActivity.kt"
