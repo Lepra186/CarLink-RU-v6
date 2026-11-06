@@ -37,7 +37,7 @@ write("airplay-receiver/build.gradle.kts", r'''plugins {
 }
 android {
     namespace = "io.github.jqssun.airplay"
-    compileSdk = 37
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
     defaultConfig {
         minSdk = 28
@@ -69,6 +69,17 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 }
 ''')
+# Upstream uses Android API 37 which is not on the standard hosted SDK channel.
+# Lower the experimental candidate to API 36 while preserving Android 10 minSdk.
+for gradle in root.rglob("build.gradle.kts"):
+    if "vendor/" in str(gradle):
+        pass
+    data = gradle.read_text()
+    data = data.replace("version = release(37)", "version = release(36)")
+    data = data.replace("compileSdk = 37", "compileSdk = 36")
+    data = data.replace("targetSdk = 37", "targetSdk = 36")
+    gradle.write_text(data)
+
 change("settings.gradle.kts", 'include(":app")', 'include(":app")\ninclude(":airplay-receiver")')
 change("app/build.gradle.kts", 'implementation(project(":carlink-core"))', 'implementation(project(":carlink-core"))\n    implementation(project(":airplay-receiver"))')
 # Remove upstream English-only filter so resource qualifiers (including Russian) work.
