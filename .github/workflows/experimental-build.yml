@@ -1,0 +1,52 @@
+name: Experimental combined APK build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Fetch upstream source trees
+        run: |
+          git clone --depth 1 https://github.com/F-e-n-y-x/CarLink.git source/carlink
+          git clone --depth 1 https://github.com/F-e-n-y-x/airplay-dlna-receiver.git source/airplay
+      - name: Install Android dependencies
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            'platforms;android-37' 'platforms;android-36' \
+            'build-tools;36.0.0' 'build-tools;35.0.0' \
+            'ndk;27.0.12077973' 'ndk;28.2.13676358' 'ndk;29.0.14206865' \
+            'cmake;3.22.1'
+      - name: Generate integrated single-application build candidate
+        run: python3 scripts/integrate.py
+      - name: Compile (experimental, do not publish as working v6)
+        working-directory: source/carlink
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --stacktrace --no-daemon
+      - name: Inspect candidate (not functional validation)
+        if: success()
+        working-directory: source/carlink
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          unzip -l "$APK" | grep -E 'lib/(arm64-v8a|armeabi-v7a)/.*\.so' | head
+          sha256sum "$APK"
+      - name: Save compile candidate for inspection only
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: EXPERIMENTAL-UNVERIFIED-NOT-v6
+          path: source/carlink/app/build/outputs/apk/debug/*.apk
+          retention-days: 7
