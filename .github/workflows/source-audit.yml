@@ -1,0 +1,52 @@
+name: Source audit (not an APK release)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch upstream source trees
+        run: |
+          git clone --depth 1 https://github.com/F-e-n-y-x/CarLink.git source/carlink
+          git clone --depth 1 https://github.com/F-e-n-y-x/airplay-dlna-receiver.git source/airplay
+      - name: Verify Android sources and identify integration requirements
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f source/carlink/app/build.gradle.kts
+          test -f source/carlink/settings.gradle.kts
+          test -f source/airplay/app/build.gradle.kts
+          test -f source/airplay/app/src/main/cpp/CMakeLists.txt
+          test -f source/airplay/app/src/main/kotlin/io/github/jqssun/airplay/service/AirPlayService.kt
+          mkdir -p reports
+          {
+            echo '# CarLink RU v6 - source audit'
+            echo
+            echo "Audit time: $(date -u +%FT%TZ)"
+            echo "CarLink commit: $(git -C source/carlink rev-parse HEAD)"
+            echo "AirPlay commit: $(git -C source/airplay rev-parse HEAD)"
+            echo
+            echo '## Confirmed'
+            echo '- Both upstream Android Gradle projects available.'
+            echo '- AirPlay service and JNI/CMake source present.'
+            echo
+            echo '## Blocking release'
+            echo '- No merged Android application yet.'
+            echo '- AirPlay service was not launched or tested on a real device.'
+            echo '- No verified wireless CarPlay authentication in merged build.'
+            echo '- No device validation on TEYES TPRO 2.'
+          } > reports/source-audit.md
+          cat reports/source-audit.md
+      - name: Store report only (no unverified APK)
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-audit
+          path: reports/source-audit.md
