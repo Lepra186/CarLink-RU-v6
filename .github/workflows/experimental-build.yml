@@ -26,10 +26,10 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            'platforms;android-36' \
+            'platforms;android-37.0' 'platforms;android-36' \
             'build-tools;36.0.0' 'build-tools;35.0.0' \
             'ndk;27.0.12077973' 'ndk;28.2.13676358' 'ndk;29.0.14206865' \
-            'cmake;3.22.1'
+            'cmake;3.22.1' --channel=3
       - name: Generate integrated single-application build candidate
         run: python3 scripts/integrate.py
       - name: Compile (experimental, do not publish as working v6)
