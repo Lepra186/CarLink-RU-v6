@@ -96,7 +96,7 @@ s = s.replace('android:authorities="${applicationId}.fileprovider"',
               'android:authorities="${applicationId}.airplay.fileprovider"')
 manifest.write_text(s)
 write("airplay-receiver/src/main/kotlin/io/github/jqssun/airplay/AirPlayFileProvider.kt",
-      "package io.github.jqssun.airplay\\n\\nclass AirPlayFileProvider : androidx.core.content.FileProvider()\\n")
+      "package io.github.jqssun.airplay\n\nclass AirPlayFileProvider : androidx.core.content.FileProvider()\n")
 vm_file = destination / "src/main/kotlin/io/github/jqssun/airplay/viewmodel/MainViewModel.kt"
 vm_source = vm_file.read_text()
 original_authority = 'ctx.packageName}.fileprovider"'
