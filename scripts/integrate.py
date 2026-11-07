@@ -208,8 +208,17 @@ change(path,
                     androidx.compose.material3.Button(
                         onClick = {
                             Connection.get(this@HomeActivity).stop()
-                            startActivity(Intent(this@HomeActivity,
-                                io.github.jqssun.airplay.MainActivity::class.java))
+                            Thread({
+                                // Release an abandoned Wi-Fi Direct group before advertising
+                                // AirPlay on the ordinary LAN; otherwise iPhone may not see mDNS.
+                                com.carlink.core.engine.WifiDirectReset.removeGroup(applicationContext)
+                                runOnUiThread {
+                                    if (!isFinishing && !isDestroyed) {
+                                        startActivity(Intent(this@HomeActivity,
+                                            io.github.jqssun.airplay.MainActivity::class.java))
+                                    }
+                                }
+                            }, "carlink-switch-to-airplay").start()
                         },
                         modifier = androidx.compose.ui.Modifier
                             .align(androidx.compose.ui.Alignment.BottomEnd)
