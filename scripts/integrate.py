@@ -115,6 +115,80 @@ for filename in destination.rglob("*.kt"):
     s = s.replace("@Inject constructor(", "constructor(")
     filename.write_text(s)
 
+# Diagnostics: AirPlay mDNS results are now visible in the app's Logs tab.
+nsd = destination / "src/main/kotlin/io/github/jqssun/airplay/discovery/NsdServiceManager.kt"
+nsd_src = nsd.read_text()
+old_decl = "class NsdServiceManager(private val ctx: Context) {"
+new_decl = ("class NsdServiceManager(private val ctx: Context, "
+            "private val diagnostic: (String) -> Unit = {}) {")
+if old_decl not in nsd_src:
+    raise RuntimeError("Upstream NSD constructor changed")
+nsd_src = nsd_src.replace(old_decl, new_decl, 1)
+for old_log, new_log in [
+    ('Log.i(TAG, "RAOP registered: ${info.serviceName}")',
+     'Log.i(TAG, "RAOP registered: ${info.serviceName}"); diagnostic("RAOP registered: ${info.serviceName}")'),
+    ('Log.e(TAG, "RAOP registration failed: $code")',
+     'Log.e(TAG, "RAOP registration failed: $code"); diagnostic("RAOP registration failed: $code")'),
+    ('Log.i(TAG, "AirPlay registered: ${info.serviceName}")',
+     'Log.i(TAG, "AirPlay registered: ${info.serviceName}"); diagnostic("AirPlay registered: ${info.serviceName}")'),
+    ('Log.e(TAG, "AirPlay registration failed: $code")',
+     'Log.e(TAG, "AirPlay registration failed: $code"); diagnostic("AirPlay registration failed: $code")'),
+]:
+    if old_log not in nsd_src:
+        raise RuntimeError("Upstream NSD event changed: " + old_log)
+    nsd_src = nsd_src.replace(old_log, new_log, 1)
+nsd.write_text(nsd_src)
+
+service = destination / "src/main/kotlin/io/github/jqssun/airplay/service/AirPlayService.kt"
+service_src = service.read_text()
+old_nsd = "nsdManager = NsdServiceManager(this).apply { acquireMulticastLock() }"
+new_nsd = 'nsdManager = NsdServiceManager(this) { event -> log("mDNS: $event") }.apply { acquireMulticastLock() }'
+if old_nsd not in service_src:
+    raise RuntimeError("Upstream AirPlay NSD initialisation changed")
+service_src = service_src.replace(old_nsd, new_nsd, 1)
+old_native = "nativeHandle = NativeBridge.nativeInit(this, hwAddr, effectiveName, keyFile, nohold, requirePin)"
+new_native = (
+    'nativeHandle = try { NativeBridge.nativeInit(this, hwAddr, effectiveName, keyFile, nohold, requirePin) }'
+    ' catch (e: LinkageError) { log("AirPlay native library error: ${e.message}"); _failStart(); return }'
+)
+if old_native not in service_src:
+    raise RuntimeError("Upstream AirPlay JNI setup changed")
+service_src = service_src.replace(old_native, new_native, 1)
+service.write_text(service_src)
+
+# Android 10 active-network details, avoiding Wi-Fi location permission.
+activity = destination / "src/main/kotlin/io/github/jqssun/airplay/MainActivity.kt"
+activity_src = activity.read_text()
+network_import = "import android.net.ConnectivityManager"
+if network_import not in activity_src:
+    activity_src = activity_src.replace(
+        "import android.os.Bundle",
+        "import android.os.Bundle\nimport android.content.Context\n"
+        "import android.net.ConnectivityManager\nimport android.net.NetworkCapabilities",
+        1
+    )
+bind_anchor = "viewModel.bindService(svc)"
+if bind_anchor not in activity_src:
+    raise RuntimeError("Upstream AirPlay bindService changed")
+activity_src = activity_src.replace(bind_anchor, "viewModel.bindService(svc)\n            logActiveNetwork()", 1)
+func_anchor = "    fun enterPip() {"
+if func_anchor not in activity_src:
+    raise RuntimeError("Upstream AirPlay MainActivity changed")
+network_function = '''    private fun logActiveNetwork() {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork
+        val caps = cm.getNetworkCapabilities(network)
+        val wifi = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+        val ips = cm.getLinkProperties(network)?.linkAddresses
+            ?.joinToString(", ") { it.address.hostAddress ?: "?" } ?: "нет"
+        viewModel.addLog("Сеть для AirPlay: Wi-Fi=$wifi, IP=$ips")
+        if (!wifi) viewModel.addLog("Подключите TEYES и iPhone к одной Wi-Fi сети")
+    }
+
+'''
+activity_src = activity_src.replace(func_anchor, network_function + func_anchor, 1)
+activity.write_text(activity_src)
+
 # Kotlin 2.4 correctly treats MediaProjectionManager.getMediaProjection() as nullable.
 # Abort the sender service when capture permission does not yield a projection.
 sender = destination / "src/main/kotlin/io/github/jqssun/airplay/mirror/MirrorSenderService.kt"
