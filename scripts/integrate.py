@@ -74,6 +74,9 @@ dependencies {
 # Android 10 compatibility is governed by the original minSdk, not compileSdk.
 
 change("settings.gradle.kts", 'include(":app")', 'include(":app")\ninclude(":airplay-receiver")')
+# AirPlay's native dependency requires at least API 28. TEYES Android 10 is API 29.
+# Raise the host minSdk rather than using an unsafe manifest override.
+change("app/build.gradle.kts", 'minSdk = 25', 'minSdk = 28')
 change("app/build.gradle.kts", 'implementation(project(":carlink-core"))', 'implementation(project(":carlink-core"))\n    implementation(project(":airplay-receiver"))')
 # Remove upstream English-only filter so resource qualifiers (including Russian) work.
 change("app/build.gradle.kts", 'localeFilters += listOf("en")', 'localeFilters += listOf("en", "ru")')
