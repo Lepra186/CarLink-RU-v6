@@ -87,7 +87,23 @@ s = manifest.read_text()
 s = re.sub(r'<application\b[^>]*>', '<application android:usesCleartextTraffic="true">', s, count=1, flags=re.S)
 s = re.sub(r'\s*<intent-filter>[\s\S]*?</intent-filter>', '', s, count=1)  # AirPlay launcher
 s = re.sub(r'\s*<receiver\b[^>]*android:name="\.BootReceiver"[\s\S]*?</receiver>', '', s)
+# The host Android Auto dependency also declares androidx.core.content.FileProvider.
+# Giving AirPlay a unique subclass avoids manifest merge by android:name, while a
+# unique authority prevents runtime URI-routing collisions between providers.
+s = s.replace('android:name="androidx.core.content.FileProvider"',
+              'android:name=".AirPlayFileProvider"')
+s = s.replace('android:authorities="${applicationId}.fileprovider"',
+              'android:authorities="${applicationId}.airplay.fileprovider"')
 manifest.write_text(s)
+write("airplay-receiver/src/main/kotlin/io/github/jqssun/airplay/AirPlayFileProvider.kt",
+      "package io.github.jqssun.airplay\\n\\nclass AirPlayFileProvider : androidx.core.content.FileProvider()\\n")
+vm_file = destination / "src/main/kotlin/io/github/jqssun/airplay/viewmodel/MainViewModel.kt"
+vm_source = vm_file.read_text()
+original_authority = 'ctx.packageName}.fileprovider"'
+if original_authority not in vm_source:
+    raise RuntimeError("AirPlay FileProvider URI authority changed upstream")
+vm_file.write_text(vm_source.replace(original_authority,
+                                     'ctx.packageName}.airplay.fileprovider"', 1))
 # Hilt was only used for Application, Activity and ViewModel scaffolding;
 # use Android's built-in ViewModel factory for the AndroidViewModel(Application).
 appkt = destination / "src/main/kotlin/io/github/jqssun/airplay/AirPlayApp.kt"
